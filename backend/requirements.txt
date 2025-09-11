@@ -1,0 +1,10 @@
+Django
+djangorestframework
+celery
+redis
+psycopg2-binary
+gunicorn
+httpx
+python-dotenv
+dj-database-url
+whitenoise
