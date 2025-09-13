@@ -126,15 +126,24 @@ STATIC_ROOT = BASE_DIR / "staticfiles"  # ← ПАПКА, куда collectstatic
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
+INSTALLED_APPS += ["rest_framework_simplejwt"]
+
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": [
-        "rest_framework.authentication.SessionAuthentication",
+        "rest_framework_simplejwt.authentication.JWTAuthentication",
     ],
-    "DEFAULT_PERMISSION_CLASSES": ["rest_framework.permissions.AllowAny"],
+    "DEFAULT_PERMISSION_CLASSES": [
+        "rest_framework.permissions.IsAuthenticated",
+    ],
 }
 
-# Celery (пока просто каркас)
+
+# Celery конфиг — через ENV в docker-compose
 CELERY_BROKER_URL = os.getenv("CELERY_BROKER_URL", "redis://redis:6379/0")
 CELERY_RESULT_BACKEND = os.getenv("CELERY_RESULT_BACKEND", "redis://redis:6379/1")
-CELERY_TIMEZONE = TIME_ZONE
+CELERY_TIMEZONE = TIME_ZONE  # "America/Adak"
 CELERY_ENABLE_UTC = True
+
+# Куда слать внутр. уведомление (боту) и чем подписываться
+BOT_INTERNAL_URL = os.getenv("BOT_INTERNAL_URL", "http://bot:8080/internal/notify-due")
+BOT_INTERNAL_TOKEN = os.getenv("BOT_INTERNAL_TOKEN", "supersecret")

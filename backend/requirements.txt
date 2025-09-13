@@ -8,3 +8,8 @@ httpx
 python-dotenv
 dj-database-url
 whitenoise
+djangorestframework
+djangorestframework-simplejwt
+celery
+redis
+httpx
