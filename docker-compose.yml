@@ -7,10 +7,13 @@ services:
       interval: 5s
       timeout: 3s
       retries: 10
+    ports:
+      - "5432:5432"
 
   redis:
     image: redis:7
-    ports: ["6379:6379"]
+    ports:
+      - "6379:6379"
 
   backend:
     build: ./backend
@@ -27,8 +30,23 @@ services:
         gunicorn proj.wsgi:application -b 0.0.0.0:8000
       "
 
+  worker:
+    build: ./backend
+    env_file: .env.backend
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_started
+      backend:
+        condition: service_started
+    command: celery -A proj worker -l info
+
   bot:
     build: ./bot
     env_file: .env.bot
-    depends_on: [backend]
-    ports: ["8080:8080"]
+    depends_on:
+      backend:
+        condition: service_started
+    ports:
+      - "8080:8080"
