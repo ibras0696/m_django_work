@@ -32,6 +32,9 @@ urlpatterns = [
 
     # JWT-эндпоинт для обновления access-токена по refresh-токену
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
+
+    # 
+    path("api/v1/me", MeView.as_view(), name="me"),
 ]
 
 # Добавляем к urlpatterns все маршруты, которые сгенерировал DefaultRouter

@@ -4,11 +4,13 @@ from django.utils.dateparse import parse_datetime
 from .models import Task, Category
 from .serializers import TaskSerializer, CategorySerializer
 
+
 class CategoryViewSet(viewsets.ModelViewSet):
     # CRUD по категориям. Здесь категории общие (нет фильтра по user).
     queryset = Category.objects.all().order_by("name")
     serializer_class = CategorySerializer
     permission_classes = [IsAuthenticated]  # доступ только авторизованным
+
 
 class TaskViewSet(viewsets.ModelViewSet):
     # CRUD по задачам текущего пользователя
@@ -54,3 +56,19 @@ class TaskViewSet(viewsets.ModelViewSet):
     def perform_create(self, serializer):
         # Сохранение идёт через сериализатор; user берётся внутри TaskSerializer.create()
         serializer.save()
+
+
+class MeView(APIView):
+    """
+    Возвращает сведения о текущем пользователе:
+    id, username, email — этого достаточно для бота.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def get(self, request):
+        user = request.user
+        return Response({
+            "id": user.id,
+            "username": user.get_username(),
+            "email": getattr(user, "email", None),
+        })
