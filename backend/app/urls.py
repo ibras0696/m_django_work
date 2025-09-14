@@ -2,7 +2,7 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.http import JsonResponse
-from .views import TaskViewSet, CategoryViewSet
+from .views import TaskViewSet, CategoryViewSet, MeView
 
 # Health-check ручка.
 # Возвращает JSON {"ok": True, "service": "backend"}.
@@ -34,7 +34,7 @@ urlpatterns = [
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
 
     # 
-    path("api/v1/me", MeView.as_view(), name="me"),
+    path("api/v1/me/", MeView.as_view(), name="me"),
 ]
 
 # Добавляем к urlpatterns все маршруты, которые сгенерировал DefaultRouter
