@@ -1,30 +1,51 @@
+# bot/main.py
+import contextlib
 import os
+import asyncio
+from contextlib import asynccontextmanager
+from typing import Any
+
 from fastapi import FastAPI, Header, HTTPException
 from pydantic import BaseModel
+from aiogram import Bot, Dispatcher, types
+from aiogram.filters import Command
 
-INTERNAL_TOKEN = os.getenv("INTERNAL_TOKEN", "supersecret")
+from storage import store
+
+from config import TELEGRAM_TOKEN
+
+from handlers import router
+
+from routes import router as routes_router
+
+if not TELEGRAM_TOKEN:
+    raise RuntimeError("TELEGRAM_TOKEN env is required")
+
+bot = Bot(token=TELEGRAM_TOKEN)
+
+dp = Dispatcher()
+
+dp.include_router(router)
 
 app = FastAPI()
+app.include_router(routes_router)
 
-@app.get("/internal/healthz")
-async def healthz():
-    return {"ok": True, "service": "bot"}
 
-class DuePayload(BaseModel):
-    user_id: int
-    task_id: int
-    title: str
-    due_at: str | None = None
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    # Инициализация sqlite
+    await store.init()
+    # Стартуем aiogram polling в фоне
+    loop = asyncio.get_event_loop()
+    polling_task = loop.create_task(dp.start_polling(bot))
+    try:
+        yield
+    finally:
+        polling_task.cancel()
+        with contextlib.suppress(asyncio.CancelledError):
+            await polling_task
+        await bot.session.close()
 
-@app.post("/internal/notify-due")
-async def notify_due(p: DuePayload, authorization: str = Header("")):
-    """
-    В реале тут вы бы нашли chat_id по user_id и вызвали aiogram Bot.
-    Для смока — просто логируем/печатаем.
-    """
-    if authorization != f"Bearer {INTERNAL_TOKEN}":
-        raise HTTPException(status_code=401, detail="unauthorized")
 
-    print(f"[BOT] Notify user_id={p.user_id} task_id={p.task_id} title={p.title} due_at={p.due_at}")
-    # TODO: aiogram send_message(chat_id, ...)
-    return {"ok": True, "delivered": True}
+# Привязываем lifespan к FastAPI
+app.router.lifespan_context = lifespan

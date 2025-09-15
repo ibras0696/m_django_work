@@ -39,4 +39,4 @@ def check_refresh(token: str | None) -> dict | None | str:
 
 tok = get_token_by_auth('root', 1234).get('access')
 pprint(tok)
-pprint(check_refresh(tok))
+# pprint(check_refresh(tok))
