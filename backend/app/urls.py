@@ -2,13 +2,15 @@ from django.urls import path, include
 from rest_framework.routers import DefaultRouter
 from rest_framework_simplejwt.views import TokenObtainPairView, TokenRefreshView
 from django.http import JsonResponse
-from .views import TaskViewSet, CategoryViewSet, MeView
+from .views import TaskViewSet, CategoryViewSet, MeView, BotAuthView
+
 
 # Health-check ручка.
 # Возвращает JSON {"ok": True, "service": "backend"}.
 # Обычно такие эндпоинты используют системы мониторинга (например, Kubernetes, Nginx).
 def healthz(_):
     return JsonResponse({"ok": True, "service": "backend"})
+
 
 # Создаём роутер DRF. Он сам генерирует маршруты для ViewSet.
 router = DefaultRouter()
@@ -32,9 +34,8 @@ urlpatterns = [
 
     # JWT-эндпоинт для обновления access-токена по refresh-токену
     path("api/token/refresh/", TokenRefreshView.as_view(), name="token_refresh"),
-
-    # 
     path("api/v1/me/", MeView.as_view(), name="me"),
+    path("api/v1/bot/auth", BotAuthView.as_view(), name="bot_auth")
 ]
 
 # Добавляем к urlpatterns все маршруты, которые сгенерировал DefaultRouter

@@ -47,3 +47,23 @@ class Task(models.Model):
 
     def __str__(self) -> str:
         return f"[{self.pk}] {self.title}"
+
+# Модель для связи пользователя Django с его Telegram-аккаунтом
+class BotProfile(models.Model):
+    """
+    Связка Django-пользователя с Telegram.
+    Один user <-> один telegram_user_id/chat_id.
+    """
+    user = models.OneToOneField(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="bot_profile") # Связь с пользователем Django
+    telegram_user_id = models.BigIntegerField(unique=True) # Уникальный ID пользователя в Telegram
+    chat_id = models.BigIntegerField(unique=True) # Уникальный ID чата в Telegram
+    created_at = models.DateTimeField(auto_now_add=True) #  Время создания записи
+
+    def __str__(self) -> str:
+        return f"user={self.user_id} tg={self.telegram_user_id} chat={self.chat_id}"
+    # Метаданные модели
+    class Meta:
+        indexes = [
+            models.Index(fields=["user"]), # Индекс по полю user для быстрого поиска
+            models.Index(fields=["telegram_user_id"]), # Индекс по полю telegram_user_id для быстрого поиска
+        ]

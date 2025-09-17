@@ -13,6 +13,7 @@ CREATE TABLE IF NOT EXISTS auth (
 );
 """
 
+
 class Storage:
     def __init__(self, db_path: str | Path = DB_PATH):
         self.db_path = str(db_path)
@@ -31,13 +32,29 @@ class Storage:
             )
             await db.commit()
 
-    async def get_auth(self, chat_id: int) -> tuple[int, str, str] | None:
+    async def get_auth(self, chat_id: int):
+        """
+       Получить user_id, access, refresh по chat_id.
+       :param chat_id: Telegram chat_id
+       :return: (user_id, access, refresh) или None
+       """
         async with aiosqlite.connect(self.db_path) as db:
             async with db.execute("SELECT user_id, access, refresh FROM auth WHERE chat_id=?", (chat_id,)) as cur:
                 row = await cur.fetchone()
                 if not row:
                     return None
                 return int(row[0]), str(row[1]), str(row[2])
+
+    async def update_access(self, chat_id: int, new_access: str) -> None:
+        """
+        Обновить access токен по chat_id.
+        :param chat_id: Telegram chat_id
+        :param new_access: новый access токен
+        return: None
+        """
+        async with aiosqlite.connect(self.db_path) as db:
+            await db.execute("UPDATE auth SET access=? WHERE chat_id=?", (new_access, chat_id))
+            await db.commit()
 
 
 store = Storage()
