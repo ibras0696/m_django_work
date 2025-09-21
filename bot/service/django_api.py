@@ -63,6 +63,27 @@ class DjangoAPI:
         r.raise_for_status()
         return r.json()
 
+    def create_task(self, access: str, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Создать задачу через Django API.
+        :param access: JWT access token
+        :param payload: данные задачи, например {"title": "...", "due_at": "..."}
+        :return: созданный объект задачи
+        """
+        r = httpx.post(self._url("/api/v1/tasks/"), json=payload, headers={"Authorization": f"Bearer {access}"}, timeout=5.0)
+        r.raise_for_status()
+        return r.json()
+
+    def refresh(self, refresh_token: str) -> dict[str, Any]:
+        """
+        Обновить access по refresh-токену через SimpleJWT endpoint.
+        :param refresh_token: refresh token
+        :return: словарь с новым access (и, возможно, refresh)
+        """
+        r = httpx.post(self._url("/api/token/refresh/"), json={"refresh": refresh_token}, timeout=5.0)
+        r.raise_for_status()
+        return r.json()
+
     def bot_auth(self, payload: dict[str, Any], internal_token: str) -> dict[str, Any]:
         """
         Интеграция бота: получить/создать пользователя по Telegram ID

@@ -1,5 +1,6 @@
 from django.db import models
 from django.conf import settings
+from . import ids
 
 
 # Create your models here.
@@ -10,7 +11,7 @@ class Category(models.Model):
     Модель категории задач.
     Категории могут использоваться для группировки задач.
     """
-    id = models.BigIntegerField(primary_key=True, editable=False) # Используем BigIntegerField для совместимости с Snowflake ID
+    id = models.BigIntegerField(primary_key=True, editable=False, default=ids.snowflake_id) # Генерация Snowflake ID по умолчанию
     name = models.CharField(max_length=64, unique=True) # Уникальное имя категории
     created_at = models.DateTimeField(auto_now_add=True) # Время создания категории
 
@@ -29,7 +30,7 @@ class Task(models.Model):
         IN_PROGRESS = "in_progress", "In Progress" # (value, label)
         DONE = "done", "Done" # (value, label)
  
-    id = models.BigIntegerField(primary_key=True, editable=False) # Используем BigIntegerField для совместимости с Snowflake ID
+    id = models.BigIntegerField(primary_key=True, editable=False, default=ids.snowflake_id) # Генерация Snowflake ID по умолчанию
     user = models.ForeignKey(settings.AUTH_USER_MODEL, on_delete=models.CASCADE, related_name="tasks") 
     title = models.CharField(max_length=200) # Заголовок задачи
     description = models.TextField(blank=True) # Описание задачи
