@@ -3,114 +3,169 @@ import contextlib
 from aiogram.fsm.context import FSMContext
 from aiogram import Router
 from aiogram import types
-from aiogram.filters import Command
-
-from utils import parse_due
+from aiogram.filters import Command, CommandObject
+import httpx
+from aiogram.exceptions import TelegramBadRequest
+import math
 from service.django_api import with_auto_refresh
+from utils.ui import fmt_task_line, kb_task_actions
 
 from states.task import AddTask
 from service import api
 from storage import store
 
+from utils.pager import (
+    forget_page,
+    remember_page,
+    kb_pager,
+    remember_ctrl,
+    forget_ctrl,
+    acquire_page_lock,
+    release_page_lock,
+    set_current,
+)
+from utils.auth import ensure_auth
+
 router = Router()
 
 
-@router.message(Command("add"))
-async def add_start(message: types.Message, state: FSMContext):
-    """
-    Начинаем диалог добавления задачи.
-    """
-    await state.set_state(AddTask.waiting_title)
-    await message.answer("Введи заголовок задачи:")
-
-
-@router.message(AddTask.waiting_title)
-async def add_got_title(message: types.Message, state: FSMContext):
-    """
-    Получили заголовок, спрашиваем дедлайн.
-    """
-    title = message.text.strip()
-    # Простая валидация
-    if not title:
-        await message.answer("Заголовок не может быть пустым. Введи ещё раз:")
+@router.message(Command("tasks"))
+async def tasks_cmd(message: types.Message):
+    # простая защита от спама — пока рендерится список, игнорим повтор
+    if not acquire_page_lock(message.chat.id):
         return
-
-    await state.update_data(title=title)
-    await state.set_state(AddTask.waiting_due)
-    await message.answer(
-        "Ок. Теперь дедлайн (ISO с оффсетом, например `2025-09-15T12:30:00-09:00`)\n"
-        "или коротко: `in 10m`, `in 2h`, `today 20:00`, `tomorrow 14:30`.\n"
-        "Если без дедлайна — напиши `skip`."
-    )
-
-
-@router.message(AddTask.waiting_due)
-async def add_got_due(message: types.Message, state: FSMContext):
-    """
-    Получили дедлайн, создаём задачу.
-    """
-    raw = message.text.strip()
-    due = None
-    if raw.lower() != "skip":
-        # Парсим дату
-        due = parse_due(raw)
-        if not due:
-            await message.answer("Не понял дату. Попробуй снова (ISO с оффсетом или `in 10m`/`today 20:00`).")
+    # гарантируем авторизацию (после рестарта контейнера)
+    await ensure_auth(message.chat.id, message.from_user)
+    parts = message.text.strip().split()
+    status = None
+    if len(parts) == 2:
+        mapping = {"todo": "todo", "done": "done", "in_progress": "in_progress", "in": "in_progress"}
+        status = mapping.get(parts[1].lower())
+        if status is None:
+            await message.answer("Фильтр: /tasks, /tasks todo, /tasks done, /tasks in_progress")
             return
 
-    data = await state.get_data()
-    title = data["title"]
+    page = 1
+    # грузим 1-ю страницу
+    data = await with_auto_refresh(
+        message.chat.id, store,
+        lambda access: api.list_tasks_paginated(access, status=status, page=page),
+        lambda refresh: api.refresh(refresh)
+    )
+    # Поддержка обоих форматов: пагинация (dict) и без пагинации (list)
+    if isinstance(data, dict):
+        items = data.get("results", [])
+        has_prev = data.get("previous") is not None
+        has_next = data.get("next") is not None
+        count = int(data.get("count", len(items) or 0))
+        # предполагаем PAGE_SIZE=5 (как на бэке), чтобы показать число страниц
+        total_pages = max(1, math.ceil(count / 5))
+    else:
+        items = list(data)
+        has_prev = False
+        has_next = False
+        count = len(items)
+        total_pages = 1
 
-    # Собираем payload для API
-    payload = {"title": title}
-    if due:
-        payload["due_at"] = due.isoformat()
-
-    # Вызываем backend с авто-refresh токена
+    # контроллер
+    header = (
+        f"Твои задачи (всего: {count}) — Стр. {page}/{total_pages}"
+        if not status else
+        f"Задачи ({status}) (всего: {count}) — Стр. {page}/{total_pages}"
+    )
+    # удалить предыдущий контроллер, если был
+    old_ctrl = forget_ctrl(message.chat.id)
+    if old_ctrl:
+        with contextlib.suppress(Exception):
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=old_ctrl)
+    # отправим контроллер; если по какой-то причине уже совпадает — просто продолжим
     try:
-        # Получаем результат
+        ctrl = await message.answer(header, reply_markup=kb_pager(page, status, has_prev, has_next))
+    except TelegramBadRequest as e:
+        if "message is not modified" in str(e):
+            ctrl = message
+        else:
+            raise
+    remember_ctrl(message.chat.id, ctrl.message_id)
+
+    # удалить предыдущую страницу (если была) ДО вывода новых карточек
+    for mid in forget_page(message.chat.id):
+        with contextlib.suppress(Exception):
+            await message.bot.delete_message(chat_id=message.chat.id, message_id=mid)
+
+    # вывести карточки и запомнить их id
+    shown_ids = []
+    for t in items:
+        text = fmt_task_line(t)
+        has_due = bool(t.get("due_at"))
+        msg = await message.answer(text, parse_mode="Markdown", reply_markup=kb_task_actions(t["id"], has_due))
+        shown_ids.append(msg.message_id)
+    remember_page(message.chat.id, shown_ids)
+    set_current(message.chat.id, page, status)
+    release_page_lock(message.chat.id)
+
+
+@router.message(Command("done"))
+async def mark_done(message: types.Message, command: CommandObject):
+    """
+    /done <id> — поставить статус done.
+    """
+    if not command.args:
+        await message.answer("Используй: /done <id>")
+        return
+    try:
+        task_id = int(command.args.strip())
+    except ValueError:
+        await message.answer("id должен быть числом.")
+        return
+
+    try:
+        await ensure_auth(message.chat.id, message.from_user)
         result = await with_auto_refresh(
             message.chat.id,
             store,
-            lambda access: api.create_task(access, payload),
+            lambda access: api.update_task(access, task_id, {"status": "done"}),
             lambda refresh: api.refresh(refresh),
         )
-        await message.answer(
-            f"Создано ✅\n[id={result['id']}] {result['title']}\nДедлайн: {result.get('due_at') or '—'}")
+        await message.answer(f"Готово ✅\n[{result['id']}] {result['title']} → done")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            await message.answer("Задача не найдена или не твоя.")
+        elif e.response.status_code == 400:
+            await message.answer(f"Неверные данные: {e.response.text}")
+        else:
+            await message.answer(f"Ошибка: {e.response.status_code}")
     except Exception as e:
-        await message.answer(f"Ошибка создания: {e!s}")
-
-    await state.clear()
+        await message.answer(f"Ошибка запроса: {e!s}")
 
 
-@router.message(Command("tasks"))
-async def on_tasks(message: types.Message):
+@router.message(Command("cancel"))
+async def cancel_due(message: types.Message, command: CommandObject):
     """
-    Показать список задач.
+    /cancel <id> — убрать дедлайн у задачи.
     """
+    if not command.args:
+        await message.answer("Используй: /cancel <id>")
+        return
     try:
-        # Получаем список задач
-        items = await with_auto_refresh(
+        task_id = int(command.args.strip())
+    except ValueError:
+        await message.answer("id должен быть числом.")
+        return
+
+    try:
+        await ensure_auth(message.chat.id, message.from_user)
+        result = await with_auto_refresh(
             message.chat.id,
             store,
-            lambda access: api.list_tasks(access),
+            lambda access: api.update_task(access, task_id, {"due_at": None}),
             lambda refresh: api.refresh(refresh),
         )
+        await message.answer(f"Дедлайн снят ✅\n[{result['id']}] {result['title']}")
+    except httpx.HTTPStatusError as e:
+        if e.response.status_code == 404:
+            await message.answer("Задача не найдена или не твоя.")
+        else:
+            await message.answer(f"Ошибка: {e.response.status_code}")
     except Exception as e:
-        await message.answer(f"Нужно авторизоваться: /start (ошибка: {e!s})")
-        return
-
-    if not items:
-        await message.answer("Задач нет.")
-        return
-
-    text_lines = ["Твои задачи:"]
-    for t in items[:20]:
-        cats = ", ".join(c["name"] for c in t.get("categories", [])) or "—"
-        text_lines.append(
-            f"• [{t['id']}] {t['title']} [{t['status']}]\n"
-            f"  Категории: {cats}\n"
-            f"  Создано: {t['created_at']}\n"
-            f"  Дедлайн: {t.get('due_at') or '—'}"
-        )
-    await message.answer("\n".join(text_lines))
+        await message.answer(f"Ошибка запроса: {e!s}")

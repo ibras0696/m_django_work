@@ -37,6 +37,8 @@ async def lifespan(_: FastAPI):
     await store.init()
     # Стартуем aiogram polling в фоне
     loop = asyncio.get_event_loop()
+    # Делаем bot доступным маршрутам через app.state
+    app.state.bot = bot
     polling_task = loop.create_task(dp.start_polling(bot))
     try:
         yield

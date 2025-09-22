@@ -1,7 +1,5 @@
-from fastapi import APIRouter, Depends, Header, HTTPException
-from pydantic import BaseModel
-from aiogram import Bot
-import aiosqlite
+from fastapi import APIRouter, Header, HTTPException
+from fastapi import Request
 
 from shemas import DuePayload
 from config import INTERNAL_TOKEN
@@ -16,7 +14,7 @@ async def healthz():
 
 
 @router.post("/notify-due")
-async def notify_due(p: DuePayload, authorization: str = Header("")):
+async def notify_due(p: DuePayload, request: Request, authorization: str = Header("")):
     """
     Принимаем уведомление от backend Celery.
     Находим chat_id по user_id в локальном сторе и отправляем сообщение.
@@ -27,6 +25,8 @@ async def notify_due(p: DuePayload, authorization: str = Header("")):
         raise HTTPException(status_code=401, detail="unauthorized")
 
     
+    # Получим все chat_id, связанные с user_id
+    import aiosqlite
     async with aiosqlite.connect(store.db_path) as db:
         async with db.execute("SELECT chat_id FROM auth WHERE user_id = ?", (p.user_id,)) as cur:
             rows = await cur.fetchall()
@@ -41,6 +41,8 @@ async def notify_due(p: DuePayload, authorization: str = Header("")):
         f"Время: {p.due_at or '—'}\n"
         f"(task_id={p.task_id})"
     )
+    # Получим bot из app.state, который запущен в polling
+    bot = request.app.state.bot
     for (chat_id,) in rows:
         try:
             await bot.send_message(chat_id, text)

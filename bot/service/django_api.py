@@ -1,7 +1,7 @@
 # bot/django_api.py
 import os
 import httpx
-from typing import Any, Callable
+from typing import Any, Callable, Optional
 
 DJANGO_API_BASE = os.getenv("DJANGO_API_BASE", "http://backend:8000")
 
@@ -53,15 +53,15 @@ class DjangoAPI:
         r.raise_for_status()
         return r.json()
 
-    def list_tasks(self, access: str) -> list[dict[str, Any]]:
-        """
-        Получить список задач текущего пользователя.
-        :param access: JWT access token
-        :return: список задач
-        """
-        r = httpx.get(self._url("/api/v1/tasks/"), headers={"Authorization": f"Bearer {access}"}, timeout=5.0)
-        r.raise_for_status()
-        return r.json()
+    # def list_tasks(self, access: str) -> list[dict[str, Any]]:
+    #     """
+    #     Получить список задач текущего пользователя.
+    #     :param access: JWT access token
+    #     :return: список задач
+    #     """
+    #     r = httpx.get(self._url("/api/v1/tasks/"), headers={"Authorization": f"Bearer {access}"}, timeout=5.0)
+    #     r.raise_for_status()
+    #     return r.json()
 
     def create_task(self, access: str, payload: dict[str, Any]) -> dict[str, Any]:
         """
@@ -70,7 +70,8 @@ class DjangoAPI:
         :param payload: данные задачи, например {"title": "...", "due_at": "..."}
         :return: созданный объект задачи
         """
-        r = httpx.post(self._url("/api/v1/tasks/"), json=payload, headers={"Authorization": f"Bearer {access}"}, timeout=5.0)
+        r = httpx.post(self._url("/api/v1/tasks/"), json=payload, headers={"Authorization": f"Bearer {access}"},
+                       timeout=5.0)
         r.raise_for_status()
         return r.json()
 
@@ -100,6 +101,78 @@ class DjangoAPI:
         r.raise_for_status()
         return r.json()
 
+    def list_tasks(self, access: str, *, status: Optional[str] = None) -> list[dict[str, Any]]:
+        """
+        Получить список задач текущего пользователя, с опциональным фильтром по статусу.
+        :param access: JWT access token
+        :param status: опциональный статус для фильтрации (например, "todo", "in_progress", "done")
+        :return: список задач
+        """
+        params = {}
+        if status:
+            params["status"] = status
+        r = httpx.get(self._url("/api/v1/tasks/"),
+                      headers={"Authorization": f"Bearer {access}"},
+                      params=params, timeout=5.0)
+        r.raise_for_status()
+        return r.json()
+
+    def update_task(self, access: str, task_id: int, payload: dict[str, Any]) -> dict[str, Any]:
+        """
+        Обновить задачу по ID.
+        :param access: JWT access token
+        :param task_id: ID задачи
+        :param payload: данные для обновления задачи
+        :return: обновлённый объект задачи
+        """
+        r = httpx.patch(self._url(f"/api/v1/tasks/{task_id}/"),
+                        headers={"Authorization": f"Bearer {access}",
+                                 "Content-Type": "application/json"},
+                        json=payload, timeout=5.0)
+        r.raise_for_status()
+        return r.json()
+
+    def list_tasks_paginated(self, access: str, *, status: str | None = None, page: int = 1) -> dict:
+        """
+        Получить список задач текущего пользователя с пагинацией.
+        :param access: JWT access token
+        :param status: опциональный статус для фильтрации (например, "todo", "in_progress", "done")
+        :param page: номер страницы (по умолчанию 1)
+        :return: dict с полями {count, next, previous, results}
+        """
+        params = {"page": page}
+        if status: params["status"] = status
+        r = httpx.get(self._url("/api/v1/tasks/"),
+                      headers={"Authorization": f"Bearer {access}"},
+                      params=params, timeout=5.0)
+        r.raise_for_status()
+        return r.json()  # dict: {count,next,previous,results}
+
+    def list_categories_paginated(self, access: str, page: int = 1) -> dict:
+        """
+        Получить список категорий с пагинацией.
+        :param access: JWT access token
+        :param page: номер страницы (по умолчанию 1)
+        :return: dict с полями {count, next, previous, results}
+        """
+        r = httpx.get(self._url("/api/v1/categories/"),
+                      headers={"Authorization": f"Bearer {access}"},
+                      params={"page": page}, timeout=5.0)
+        r.raise_for_status()
+        return r.json()
+
+    def create_category(self, access: str, name: str) -> dict:
+        """
+        Создать категорию.
+        :param access: JWT access token
+        :param name: имя категории
+        :return: созданный объект категории
+        """
+        r = httpx.post(self._url("/api/v1/categories/"),
+                       headers={"Authorization": f"Bearer {access}", "Content-Type": "application/json"},
+                       json={"name": name}, timeout=5.0)
+        r.raise_for_status()
+        return r.json()
 
 # Вспомогательная обёртка: выполнить вызов, а при 401 — обновить access по refresh и повторить
 async def with_auto_refresh(
