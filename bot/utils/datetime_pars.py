@@ -22,13 +22,16 @@ def parse_due(text: str) -> datetime | None:
     :param text: строка с датой/временем
     :return: datetime в часовом поясе Adak или None, если не удалось распарсить
     """
-    t = text.strip().lower()
-    # 1) ISO with offset
-    if iso_re.match(t):
+    raw = text.strip()
+    # 1) ISO with offset (сохраняем регистр, т.к. ISO требует 'T')
+    if iso_re.match(raw):
         try:
-            return datetime.fromisoformat(t)
+            return datetime.fromisoformat(raw)
         except Exception:
             return None
+
+    # для остальных паттернов можно безопасно привести к нижнему регистру
+    t = raw.lower()
 
     # 2) relative: in Xm / in Xh
     m = re.match(r"in\s+(\d+)\s*(m|min|minute|minutes)$", t)

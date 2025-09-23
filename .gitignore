@@ -2,7 +2,9 @@
 #.env
 # Игнор базы данных
 /database/DataBase.db
-.env
+.env.backend
+.env.bot
+.env.db
 .idea
 .venv
 

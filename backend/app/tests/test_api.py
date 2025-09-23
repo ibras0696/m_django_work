@@ -1,10 +1,9 @@
 from django.contrib.auth import get_user_model
 from django.utils import timezone
-from django.urls import reverse
 from rest_framework.test import APITestCase, APIClient
 
 
-class TestAPISmoke(APITestCase):
+class APISmokeTests(APITestCase):
     def setUp(self):
         self.User = get_user_model()
         self.user = self.User.objects.create_user(username="tester")
@@ -12,7 +11,7 @@ class TestAPISmoke(APITestCase):
         self.client.force_authenticate(user=self.user)
 
     def test_me_endpoint(self):
-        resp = self.client.get(reverse("me"))
+        resp = self.client.get("/api/v1/me")
         self.assertEqual(resp.status_code, 200)
         data = resp.json()
         self.assertEqual(data["id"], self.user.id)
@@ -60,11 +59,13 @@ class TestAPISmoke(APITestCase):
         )
         self.assertEqual(t3.status_code, 201)
 
+        # status filter
         rs = self.client.get("/api/v1/tasks/?status=todo")
         self.assertEqual(rs.status_code, 200)
         bs = rs.json()
         self.assertTrue(all(x["status"] == "todo" for x in bs["results"]))
 
+        # category filter
         rc = self.client.get(f"/api/v1/tasks/?category={c2['id']}")
         self.assertEqual(rc.status_code, 200)
         bc = rc.json()
@@ -75,29 +76,32 @@ class TestAPISmoke(APITestCase):
             )
         )
 
+        # due filters (inclusive bounds)
         now_iso = timezone.now().isoformat()
         r_before = self.client.get(f"/api/v1/tasks/?due_before={now_iso}")
         self.assertEqual(r_before.status_code, 200)
+        # at least the in_progress task with due=now should be present or empty if clock shifted
+        # we just assert JSON shape
         self.assertIn("results", r_before.json())
 
         r_after = self.client.get(f"/api/v1/tasks/?due_after={now_iso}")
         self.assertEqual(r_after.status_code, 200)
 
+        # update + categories clear
         tid = t1.json()["id"]
         up = self.client.patch(f"/api/v1/tasks/{tid}/", {"status": "done", "category_ids": []}, format="json")
         self.assertEqual(up.status_code, 200)
         self.assertEqual(up.json()["status"], "done")
 
 
-class TestBotAuth(APITestCase):
+class BotAuthTests(APITestCase):
     def test_bot_auth_flow(self):
-        from django.conf import settings
         payload = {"telegram_user_id": 123, "chat_id": 456, "username": "tguser"}
         r = self.client.post(
-            reverse("bot_auth"),
+            "/api/v1/bot/auth",
             payload,
             format="json",
-            HTTP_X_INTERNAL_TOKEN=getattr(settings, "BOT_INTERNAL_TOKEN", "supersecret"),
+            HTTP_X_INTERNAL_TOKEN="supersecret",
         )
         self.assertEqual(r.status_code, 200)
         data = r.json()
@@ -107,9 +111,9 @@ class TestBotAuth(APITestCase):
 
         # chat_id update
         r2 = self.client.post(
-            reverse("bot_auth"),
+            "/api/v1/bot/auth",
             {"telegram_user_id": 123, "chat_id": 789, "username": "tguser"},
             format="json",
-            HTTP_X_INTERNAL_TOKEN=getattr(settings, "BOT_INTERNAL_TOKEN", "supersecret"),
+            HTTP_X_INTERNAL_TOKEN="supersecret",
         )
         self.assertEqual(r2.status_code, 200)

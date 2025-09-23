@@ -43,10 +43,28 @@ services:
     command: celery -A proj worker -l info
 
   bot:
-    build: ./bot
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
     env_file: .env.bot
     depends_on:
       backend:
         condition: service_started
     ports:
       - "8080:8080"
+
+  bot-tests:
+    build:
+      context: .
+      dockerfile: bot/Dockerfile
+    env_file: .env.bot
+    command: sh -c "python -m unittest discover -s bot/tests -p 'test_*.py' -q"
+    # tests do not require backend; run standalone
+
+  backend-tests:
+    build: ./backend
+    env_file: .env.backend
+    depends_on:
+      db:
+        condition: service_healthy
+    command: sh -c "python manage.py test"
