@@ -62,11 +62,21 @@ def fmt_task_line(t: dict) -> str:
     )
 
 
-def kb_task_actions(task_id: int, has_due: bool) -> InlineKeyboardMarkup:
+def kb_task_actions(task_id: int, has_due: bool, status: str | None = None) -> InlineKeyboardMarkup:
+    """Клавиатура действий по задаче.
+    Если статус уже done — кнопку "Готово" не показываем.
+    :param task_id: id задачи
+    :param has_due: есть ли дедлайн
+    :param status: текущий статус (может быть None, тогда считаем не done)
+    """
     buttons = []
-    buttons.append(InlineKeyboardButton(text="✅ Готово", callback_data=f"task:done:{task_id}"))
+    if status != "done":
+        buttons.append(InlineKeyboardButton(text="✅ Готово", callback_data=f"task:done:{task_id}"))
     if has_due:
         buttons.append(InlineKeyboardButton(text="🗓 Снять дедлайн", callback_data=f"task:cancel:{task_id}"))
+    if not buttons:
+        # хотя бы пустой ряд, чтобы не падать — или можно вернуть None и не прикреплять клавиатуру выше
+        return InlineKeyboardMarkup(inline_keyboard=[[InlineKeyboardButton(text="—", callback_data="noop")]])
     return InlineKeyboardMarkup(inline_keyboard=[buttons])
 
 

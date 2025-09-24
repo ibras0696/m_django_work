@@ -1,5 +1,6 @@
 from aiogram import Router, F
 from aiogram import types
+from aiogram.exceptions import TelegramBadRequest
 from aiogram.fsm.context import FSMContext
 import httpx
 
@@ -24,8 +25,16 @@ async def cb_task_done(cb: types.CallbackQuery):
         )
         # обновим текст и кнопки (дедлайна может не быть уже важно; статус станет done)
         new_text = fmt_task_line(updated)
-        await cb.message.edit_text(new_text, parse_mode="Markdown",
-                                   reply_markup=kb_task_actions(updated["id"], bool(updated.get("due_at"))))
+        try:
+            await cb.message.edit_text(
+                new_text,
+                parse_mode="Markdown",
+                reply_markup=kb_task_actions(updated["id"], bool(updated.get("due_at")), updated.get("status"))
+            )
+        except TelegramBadRequest as te:
+            # Игнорируем только ситуацию, когда содержимое не изменилось
+            if "message is not modified" not in str(te):
+                raise
         await cb.answer("Готово ✓")
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:
@@ -48,8 +57,15 @@ async def cb_task_cancel_due(cb: types.CallbackQuery):
         )
         new_text = fmt_task_line(updated)
         # после снятия дедлайна кнопку «Снять дедлайн» убираем
-        await cb.message.edit_text(new_text, parse_mode="Markdown",
-                                   reply_markup=kb_task_actions(updated["id"], has_due=False))
+        try:
+            await cb.message.edit_text(
+                new_text,
+                parse_mode="Markdown",
+                reply_markup=kb_task_actions(updated["id"], has_due=False, status=updated.get("status"))
+            )
+        except TelegramBadRequest as te:
+            if "message is not modified" not in str(te):
+                raise
         await cb.answer("Дедлайн снят ✓")
     except httpx.HTTPStatusError as e:
         if e.response.status_code == 404:

@@ -98,7 +98,11 @@ async def tasks_cmd(message: types.Message):
     for t in items:
         text = fmt_task_line(t)
         has_due = bool(t.get("due_at"))
-        msg = await message.answer(text, parse_mode="Markdown", reply_markup=kb_task_actions(t["id"], has_due))
+        msg = await message.answer(
+            text,
+            parse_mode="Markdown",
+            reply_markup=kb_task_actions(t["id"], has_due, t.get("status"))
+        )
         shown_ids.append(msg.message_id)
     remember_page(message.chat.id, shown_ids)
     set_current(message.chat.id, page, status)
