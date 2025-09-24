@@ -113,7 +113,7 @@ class TestDjangoAPI(unittest.TestCase):
         self.assertIn("access", res)
         call = self.fx.calls[-1]
         self.assertEqual(call["method"], "POST")
-        self.assertTrue(call["url"].endswith("/api/v1/bot/auth"))
+    self.assertTrue(call["url"].endswith("/api/v1/bot/auth/"))
         self.assertEqual(call["json"], payload)
         self.assertEqual(call["headers"].get("X-Internal-Token"), "sec")
 

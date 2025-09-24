@@ -98,7 +98,7 @@ class BotAuthTests(APITestCase):
     def test_bot_auth_flow(self):
         payload = {"telegram_user_id": 123, "chat_id": 456, "username": "tguser"}
         r = self.client.post(
-            "/api/v1/bot/auth",
+            "/api/v1/bot/auth/",
             payload,
             format="json",
             HTTP_X_INTERNAL_TOKEN="supersecret",
@@ -111,7 +111,7 @@ class BotAuthTests(APITestCase):
 
         # chat_id update
         r2 = self.client.post(
-            "/api/v1/bot/auth",
+            "/api/v1/bot/auth/",
             {"telegram_user_id": 123, "chat_id": 789, "username": "tguser"},
             format="json",
             HTTP_X_INTERNAL_TOKEN="supersecret",

@@ -94,10 +94,14 @@ class DjangoAPI:
         :return: {"user": {"id": int, "username": str}, "access": str, "refresh": str}
         """
         headers = {"X-Internal-Token": internal_token}
-        r = httpx.post(self._url("/api/v1/bot/auth"), json=payload,
-                       headers=headers,
-                       # headers={"Authorization": f"Bearer {internal_token}"},
-                       timeout=5.0)
+        # Endpoint requires trailing slash to avoid APPEND_SLASH redirect breaking POST
+        r = httpx.post(
+            self._url("/api/v1/bot/auth/"),
+            json=payload,
+            headers=headers,
+            # headers={"Authorization": f"Bearer {internal_token}"},
+            timeout=5.0,
+        )
         r.raise_for_status()
         return r.json()
 
