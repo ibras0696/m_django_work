@@ -2,6 +2,9 @@ FROM python:3.12-slim
 
 WORKDIR /app
 
+# Ensure Python can import bare modules inside /app/bot (storage, service, utils, etc.)
+ENV PYTHONPATH="/app/bot:${PYTHONPATH}"
+
 # Copy only requirements first to leverage Docker layer caching (paths relative to build context)
 COPY bot/requirements.txt ./requirements.txt
 

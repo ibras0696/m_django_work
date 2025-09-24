@@ -3,7 +3,6 @@ from aiogram.filters import Command
 
 from service.django_api import api
 from storage import store
-
 from config import INTERNAL_TOKEN
 
 router = Router()

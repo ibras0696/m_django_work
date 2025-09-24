@@ -11,11 +11,8 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.filters import Command
 
 from storage import store
-
 from config import TELEGRAM_TOKEN
-
 from handlers import router
-
 from routes import router as routes_router
 
 if not TELEGRAM_TOKEN:

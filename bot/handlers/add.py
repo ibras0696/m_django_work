@@ -4,13 +4,11 @@ from aiogram.fsm.context import FSMContext
 from datetime import timezone
 
 from utils import parse_due
-from utils.ui import fmt_task_preview, kb_confirm_create
+from utils.ui import fmt_task_preview, kb_confirm_create, kb_categories_page
 from states.task import AddTask
-
 from service.django_api import with_auto_refresh
 from service import api
 from storage import store
-from utils.ui import kb_categories_page
 from config import INTERNAL_TOKEN
 
 router = Router()

@@ -4,13 +4,9 @@ from aiogram.fsm.context import FSMContext
 import httpx
 
 from states.task import AddTask
-
 from service.django_api import with_auto_refresh
-
 from storage import store
-
 from service import api
-
 from utils.ui import fmt_task_line, kb_task_actions
 
 router = Router()
